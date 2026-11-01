@@ -1,0 +1,70 @@
+# Lab 4 - A* with trace, heuristic audit, UCS control and overestimate experiment
+# Heuristic values are abstract travel-time estimates supplied by the manual (not measured distances).
+# Counting convention: a node is "expanded" when its successors are examined.
+# Goal processing is logged but NOT counted; stale queue entries are ignored.
+import heapq
+
+graph = {"S": [("A", 1), ("B", 4)], "A": [("C", 2)], "B": [("G", 5)],
+         "C": [("G", 3)], "G": []}
+h_supplied = {"S": 5, "A": 4, "B": 4, "C": 2, "G": 0}
+true_remaining = {"S": 6, "A": 5, "B": 5, "C": 3, "G": 0}
+
+
+def astar(graph, h, start, goal, label):
+    print(f"--- {label} ---")
+    pq = [(h[start], 0, start, [start])]
+    best = {start: 0}
+    expanded = []
+    processed = []
+    while pq:
+        f, g, node, path = heapq.heappop(pq)
+        if g != best[node]:
+            print(f"  stale entry skipped: {node} (g={g})")
+            continue
+        processed.append(node)
+        if node == goal:
+            print(f"  process {node}: g={g}, h={h[node]}, f={f} -> GOAL (not counted as expansion)")
+            return path, g, processed, expanded
+        expanded.append(node)
+        for nxt, w in graph.get(node, []):
+            ng = g + w
+            if ng < best.get(nxt, float("inf")):
+                best[nxt] = ng
+                heapq.heappush(pq, (ng + h[nxt], ng, nxt, path + [nxt]))
+        frontier = sorted((ff, gg, n) for ff, gg, n, _ in pq)
+        print(f"  process {node}: g={g}, h={h[node]}, f={f} | frontier (f,g,node): {frontier}")
+    return None, None, processed, expanded
+
+
+def path_cost(path):
+    total = 0
+    for a, b in zip(path, path[1:]):
+        total += dict(graph[a])[b]
+    return total
+
+
+# Heuristic audit
+print("Admissibility check (h <= true remaining cost):")
+for n in h_supplied:
+    print(f"  {n}: h={h_supplied[n]} true={true_remaining[n]} -> {'OK' if h_supplied[n] <= true_remaining[n] else 'OVERESTIMATE'}")
+print("Consistency check h(u) <= cost(u,v) + h(v):")
+for u, edges in graph.items():
+    for v, w in edges:
+        ok = h_supplied[u] <= w + h_supplied[v]
+        print(f"  {u}->{v}: {h_supplied[u]} <= {w} + {h_supplied[v]} = {w + h_supplied[v]} -> {'OK' if ok else 'FAIL'}")
+print()
+
+results = []
+runs = [("A* (supplied h)", h_supplied),
+        ("UCS control (h = 0)", {n: 0 for n in graph}),
+        ("A* with h(C)=10 (overestimate)", {**h_supplied, "C": 10})]
+for label, h in runs:
+    path, cost, processed, expanded = astar(graph, h, "S", "G", label)
+    print(f"  path={path} | returned cost={cost} | independent cost={path_cost(path)}")
+    print(f"  processed={processed} | expanded={expanded} | expansion count={len(expanded)}")
+    print()
+    results.append((label, path, path_cost(path), len(expanded)))
+
+print("Summary")
+for label, path, cost, count in results:
+    print(f"{label} | path={'-'.join(path)} | cost={cost} | expansions={count}")
