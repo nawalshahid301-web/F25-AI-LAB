@@ -1,0 +1,44 @@
+# Lab 3 - Task 2: DLS and IDDFS (original A-G graph, root depth = 0)
+# Path-local cycle check only (no global visited set across depth limits).
+graph = {"A": ["B", "C"], "B": ["D", "E"], "C": ["F"],
+         "D": [], "E": ["G"], "F": [], "G": []}
+
+
+def dls(node, goal, limit, path):
+    if node == goal:
+        return "FOUND", path
+    if limit == 0:
+        # a deeper continuation exists -> CUTOFF, otherwise this branch is exhausted
+        return ("CUTOFF", None) if graph[node] else ("FAILURE", None)
+    cutoff = False
+    for n in graph[node]:
+        if n in path:          # path-local cycle check
+            continue
+        status, result = dls(n, goal, limit - 1, path + [n])
+        if status == "FOUND":
+            return status, result
+        if status == "CUTOFF":
+            cutoff = True
+    return ("CUTOFF", None) if cutoff else ("FAILURE", None)
+
+
+def iddfs(start, goal, max_depth):
+    attempted = []
+    for limit in range(max_depth + 1):
+        attempted.append(limit)
+        status, path = dls(start, goal, limit, [start])
+        if status == "FOUND":
+            return status, path, attempted
+    return status, None, attempted
+
+
+print("DLS results")
+for limit in [1, 2, 3, 4]:
+    status, path = dls("A", "G", limit, ["A"])
+    print(f"limit={limit} | status={status} | path={path}")
+
+print()
+print("IDDFS results")
+for max_depth in [1, 2, 3, 4]:
+    status, path, attempted = iddfs("A", "G", max_depth)
+    print(f"max_depth={max_depth} | status={status} | path={path} | limits attempted={attempted}")
